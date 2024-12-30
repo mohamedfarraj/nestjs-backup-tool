@@ -2,7 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Storage } from './storage.interface';
 import { FTPStorageConfig } from '../interfaces/backup-options.interface';
 import * as Client from 'ftp';
-import * as fs from 'fs/promises';
+import * as fs from 'fs';
+import * as fsPromises from 'fs/promises';
 
 @Injectable()
 export class FTPStorage implements Storage {

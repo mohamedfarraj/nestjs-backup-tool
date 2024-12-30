@@ -21,7 +21,7 @@ export class BackupModule {
     const imports = [ScheduleModule.forRoot()];
     
     if (options.enableUI) {
-      imports.push(BackupUIModule);
+      imports.push(BackupUIModule.forRoot());
     }
 
     return {
