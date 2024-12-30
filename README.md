@@ -151,10 +151,6 @@ If you have any questions, issues, or feature requests, please:
 2. Open a new issue if your problem or suggestion is not already reported
 3. Join our [Discord Community](https://discord.gg/your-discord) for real-time support
 
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for a list of changes.
-
 ## Acknowledgments
 
 - Thanks to all contributors who have helped shape this project
