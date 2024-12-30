@@ -37,11 +37,13 @@ export class BackupService {
   }
 
   async createBackup(): Promise<void> {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const fileName = `backup-${timestamp}.sql`;
-    const filePath = path.join(this.tempDir, fileName);
-
     try {
+      await this.checkDatabaseTools();
+      
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const fileName = `backup-${timestamp}.sql`;
+      const filePath = path.join(this.tempDir, fileName);
+
       // Create database dump
       await this.createDatabaseDump(filePath);
       this.logger.log(`Database dump created at ${filePath}`);
@@ -59,9 +61,17 @@ export class BackupService {
       await this.sendNotification('Backup Success', `Backup ${fileName} created successfully`);
       await this.clean(); // Clean old backups based on retention policy
     } catch (error) {
-      this.logger.error('Backup failed', error);
-      await this.sendNotification('Backup Failed', error.message);
-      throw error;
+      const errorMessage = error.message.includes('not installed')
+        ? error.message
+        : `Backup failed: ${error.message}\n` +
+          `Please ensure:\n` +
+          `1. Database tools are installed\n` +
+          `2. Database credentials are correct\n` +
+          `3. Database is accessible from this machine`;
+      
+      this.logger.error(errorMessage);
+      await this.sendNotification('Backup Failed', errorMessage);
+      throw new Error(errorMessage);
     }
   }
 
@@ -152,13 +162,33 @@ export class BackupService {
     let command: string;
 
     if (type === 'mysql') {
-      command = `mysqldump -h${host} ${port ? `-P${port}` : ''} -u${user} -p${password} ${database} > ${filePath}`;
+      command = [
+        'mysqldump',
+        `-h${host}`,
+        port ? `-P${port}` : '',
+        `-u${user}`,
+        `-p${password}`,
+        '--single-transaction',
+        '--quick',
+        '--compress',
+        database,
+        `> "${filePath}"`
+      ].filter(Boolean).join(' ');
     } else if (type === 'postgres') {
       const env = {
         PGPASSWORD: password,
         ...process.env,
       };
-      command = `pg_dump -h ${host} ${port ? `-p ${port}` : ''} -U ${user} -d ${database} -f ${filePath}`;
+      command = [
+        'pg_dump',
+        `-h ${host}`,
+        port ? `-p ${port}` : '',
+        `-U ${user}`,
+        `-d ${database}`,
+        `-f "${filePath}"`,
+        '--clean',
+        '--if-exists'
+      ].filter(Boolean).join(' ');
       await execAsync(command, { env });
       return;
     } else {
@@ -204,5 +234,24 @@ export class BackupService {
     // Implement email notification logic here
     // You can use nodemailer or any other email service
     this.logger.log(`Notification: ${subject} - ${message}`);
+  }
+
+  private async checkDatabaseTools(): Promise<void> {
+    const { type } = this.options.database;
+    
+    try {
+      if (type === 'mysql') {
+        await execAsync('which mysqldump');
+      } else if (type === 'postgres') {
+        await execAsync('which pg_dump');
+      }
+    } catch (error) {
+      const tool = type === 'mysql' ? 'mysqldump' : 'pg_dump';
+      throw new Error(
+        `${tool} is not installed. Please install the required database tools:\n` +
+        `For MySQL: Install mysql-client\n` +
+        `For PostgreSQL: Install postgresql-client`
+      );
+    }
   }
 } 

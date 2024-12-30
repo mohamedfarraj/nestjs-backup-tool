@@ -22,6 +22,36 @@ A comprehensive backup solution for NestJS applications supporting multiple data
   - Async configuration support
 
 
+## Prerequisites
+
+Before using this package, make sure you have the following installed:
+
+### For MySQL Backups
+```bash
+# For Debian/Ubuntu
+sudo apt-get update
+sudo apt-get install mysql-client or sudo apt-get install mariadb-client
+
+# For macOS
+brew install mysql-client
+
+# For Windows
+# Install MySQL Workbench or MySQL Command Line Client
+```
+
+### For PostgreSQL Backups
+```bash
+# For Debian/Ubuntu
+sudo apt-get update
+sudo apt-get install postgresql-client
+
+# For macOS
+brew install postgresql
+
+# For Windows
+# Install PostgreSQL client tools
+```
+
 ## Installation
 
 ```bash
