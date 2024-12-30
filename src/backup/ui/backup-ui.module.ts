@@ -7,18 +7,14 @@ import { BackupOptions } from '../interfaces/backup-options.interface';
 
 @Module({})
 export class BackupUIModule {
-  static forRoot(): DynamicModule {
+  static forRoot(options: BackupOptions): DynamicModule {
     return {
       module: BackupUIModule,
       controllers: [BackupUIController],
       providers: [
         {
           provide: BACKUP_OPTIONS,
-          useFactory: () => {
-            // Get the options from the parent module
-            const parentModule = process.mainModule?.require('./backup/backup.module');
-            return parentModule?.options;
-          },
+          useValue: options,
         },
         StorageFactory,
         BackupService
