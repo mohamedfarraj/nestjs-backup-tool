@@ -16,6 +16,7 @@ const backup_ui_module_1 = require("./ui/backup-ui.module");
 const storage_factory_1 = require("./storage/storage.factory");
 let BackupModule = BackupModule_1 = class BackupModule {
     static forRoot(options) {
+        BackupModule_1.options = options;
         const providers = [
             {
                 provide: constants_1.BACKUP_OPTIONS,
@@ -32,7 +33,7 @@ let BackupModule = BackupModule_1 = class BackupModule {
             module: BackupModule_1,
             imports,
             providers,
-            exports: [backup_service_1.BackupService],
+            exports: [backup_service_1.BackupService, storage_factory_1.StorageFactory, constants_1.BACKUP_OPTIONS],
             global: true,
         };
     }
@@ -54,7 +55,7 @@ let BackupModule = BackupModule_1 = class BackupModule {
             module: BackupModule_1,
             imports,
             providers,
-            exports: [backup_service_1.BackupService],
+            exports: [backup_service_1.BackupService, storage_factory_1.StorageFactory, constants_1.BACKUP_OPTIONS],
             global: true,
         };
     }

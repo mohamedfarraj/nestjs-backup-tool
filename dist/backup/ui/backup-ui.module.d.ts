@@ -1,10 +1,4 @@
-import { BackupUIController } from './backup-ui.controller';
-import { BackupService } from '../backup.service';
+import { DynamicModule } from '@nestjs/common';
 export declare class BackupUIModule {
-    static forRoot(): {
-        module: typeof BackupUIModule;
-        controllers: (typeof BackupUIController)[];
-        providers: (typeof BackupService)[];
-        exports: (typeof BackupService)[];
-    };
+    static forRoot(): DynamicModule;
 }

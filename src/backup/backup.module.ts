@@ -8,7 +8,11 @@ import { StorageFactory } from './storage/storage.factory';
 
 @Module({})
 export class BackupModule {
+  static options: BackupOptions;
+
   static forRoot(options: BackupOptions): DynamicModule {
+    BackupModule.options = options;
+
     const providers: Provider[] = [
       {
         provide: BACKUP_OPTIONS,
@@ -28,7 +32,7 @@ export class BackupModule {
       module: BackupModule,
       imports,
       providers,
-      exports: [BackupService],
+      exports: [BackupService, StorageFactory, BACKUP_OPTIONS],
       global: true,
     };
   }
@@ -57,7 +61,7 @@ export class BackupModule {
       module: BackupModule,
       imports,
       providers,
-      exports: [BackupService],
+      exports: [BackupService, StorageFactory, BACKUP_OPTIONS],
       global: true,
     };
   }

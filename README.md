@@ -47,15 +47,13 @@ import { BackupModule } from 'nestjs-backup-tool';
         database: 'mydb'
       },
       storage: [
-        { type: 'local', local: { path: './backups' } },
-        { 
-          type: 's3', 
-          s3: { 
-            bucketName: 'my-backup-bucket', 
-            region: 'us-east-1',
-            accessKeyId: 'AWS_ACCESS_KEY',
-            secretAccessKey: 'AWS_SECRET_KEY'
-          } 
+         { type: 'local', path: './backups' },
+        {
+          type: 's3',
+          bucketName: 'my-backups',
+          region: 'us-east-1',
+          accessKeyId: 'YOUR_ACCESS_KEY',
+          secretAccessKey: 'YOUR_SECRET_KEY',
         }
       ],
       schedule: '0 2 * * *', // Daily at 2 AM
@@ -65,7 +63,7 @@ import { BackupModule } from 'nestjs-backup-tool';
         enabled: true,
         email: {
           from: 'backup@example.com',
-          to: 'admin@example.com',
+          to: ['admin@example.com'],
           smtp: {
             host: 'smtp.example.com',
             port: 587,

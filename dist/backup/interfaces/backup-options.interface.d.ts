@@ -36,7 +36,7 @@ export interface BackupOptions {
     notifications?: {
         email?: {
             from: string;
-            to: string[];
+            to: string[] | string;
             smtp: {
                 host: string;
                 port: number;
