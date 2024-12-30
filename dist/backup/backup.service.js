@@ -16,6 +16,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.BackupService = void 0;
 const common_1 = require("@nestjs/common");
 const schedule_1 = require("@nestjs/schedule");
+const cron_1 = require("cron");
 const child_process_1 = require("child_process");
 const util_1 = require("util");
 const fs = require("fs/promises");
@@ -24,30 +25,66 @@ const constants_1 = require("./constants");
 const storage_factory_1 = require("./storage/storage.factory");
 const execAsync = (0, util_1.promisify)(child_process_1.exec);
 let BackupService = BackupService_1 = class BackupService {
-    constructor(options, storageFactory) {
+    constructor(options, storageFactory, schedulerRegistry) {
         this.options = options;
         this.storageFactory = storageFactory;
+        this.schedulerRegistry = schedulerRegistry;
         this.logger = new common_1.Logger(BackupService_1.name);
         this.tempDir = path.join(process.cwd(), 'temp-backups');
+        this.BACKUP_JOB_NAME = 'backup-job';
         fs.mkdir(this.tempDir, { recursive: true });
     }
-    async scheduledBackup() {
+    async onModuleInit() {
         if (this.options.schedule) {
             try {
-                await this.createBackup();
-                this.logger.log('Scheduled backup completed successfully');
+                try {
+                    const existingJob = this.schedulerRegistry.getCronJob(this.BACKUP_JOB_NAME);
+                    if (existingJob) {
+                        this.logger.log(`Stopping existing backup job`);
+                        existingJob.stop();
+                        this.schedulerRegistry.deleteCronJob(this.BACKUP_JOB_NAME);
+                    }
+                }
+                catch (error) {
+                    this.logger.debug('No existing backup job found');
+                }
+                const job = new cron_1.CronJob(this.options.schedule, async () => {
+                    try {
+                        await this.createBackup();
+                        this.logger.log('Scheduled backup completed successfully');
+                    }
+                    catch (error) {
+                        this.logger.error('Scheduled backup failed', error);
+                        await this.sendNotification('Backup Failed', error.message);
+                    }
+                }, null, true, 'UTC');
+                this.schedulerRegistry.addCronJob(this.BACKUP_JOB_NAME, job);
+                this.logger.log(`Backup scheduled with cron expression: ${this.options.schedule}`);
             }
             catch (error) {
-                this.logger.error('Scheduled backup failed', error);
-                await this.sendNotification('Backup Failed', error.message);
+                this.logger.error('Failed to schedule backup job', error);
             }
         }
     }
-    async createBackup() {
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const fileName = `backup-${timestamp}.sql`;
-        const filePath = path.join(this.tempDir, fileName);
+    async onModuleDestroy() {
         try {
+            const job = this.schedulerRegistry.getCronJob(this.BACKUP_JOB_NAME);
+            if (job) {
+                job.stop();
+                this.schedulerRegistry.deleteCronJob(this.BACKUP_JOB_NAME);
+                this.logger.log('Backup job stopped and removed');
+            }
+        }
+        catch (error) {
+            this.logger.error('Error cleaning up backup job', error);
+        }
+    }
+    async createBackup() {
+        try {
+            await this.checkDatabaseTools();
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const fileName = `backup-${timestamp}.sql`;
+            const filePath = path.join(this.tempDir, fileName);
             await this.createDatabaseDump(filePath);
             this.logger.log(`Database dump created at ${filePath}`);
             for (const storageConfig of this.options.storage) {
@@ -60,9 +97,16 @@ let BackupService = BackupService_1 = class BackupService {
             await this.clean();
         }
         catch (error) {
-            this.logger.error('Backup failed', error);
-            await this.sendNotification('Backup Failed', error.message);
-            throw error;
+            const errorMessage = error.message.includes('not installed')
+                ? error.message
+                : `Backup failed: ${error.message}\n` +
+                    `Please ensure:\n` +
+                    `1. Database tools are installed\n` +
+                    `2. Database credentials are correct\n` +
+                    `3. Database is accessible from this machine`;
+            this.logger.error(errorMessage);
+            await this.sendNotification('Backup Failed', errorMessage);
+            throw new Error(errorMessage);
         }
     }
     async restore(fileName) {
@@ -145,11 +189,31 @@ let BackupService = BackupService_1 = class BackupService {
         const { type, host, port, user, password, database } = this.options.database;
         let command;
         if (type === 'mysql') {
-            command = `mysqldump -h${host} ${port ? `-P${port}` : ''} -u${user} -p${password} ${database} > ${filePath}`;
+            command = [
+                'mysqldump',
+                `-h${host}`,
+                port ? `-P${port}` : '',
+                `-u${user}`,
+                `-p${password}`,
+                '--single-transaction',
+                '--quick',
+                '--compress',
+                database,
+                `> "${filePath}"`
+            ].filter(Boolean).join(' ');
         }
         else if (type === 'postgres') {
             const env = Object.assign({ PGPASSWORD: password }, process.env);
-            command = `pg_dump -h ${host} ${port ? `-p ${port}` : ''} -U ${user} -d ${database} -f ${filePath}`;
+            command = [
+                'pg_dump',
+                `-h ${host}`,
+                port ? `-p ${port}` : '',
+                `-U ${user}`,
+                `-d ${database}`,
+                `-f "${filePath}"`,
+                '--clean',
+                '--if-exists'
+            ].filter(Boolean).join(' ');
             await execAsync(command, { env });
             return;
         }
@@ -189,17 +253,29 @@ let BackupService = BackupService_1 = class BackupService {
             return;
         this.logger.log(`Notification: ${subject} - ${message}`);
     }
+    async checkDatabaseTools() {
+        const { type } = this.options.database;
+        try {
+            if (type === 'mysql') {
+                await execAsync('which mysqldump');
+            }
+            else if (type === 'postgres') {
+                await execAsync('which pg_dump');
+            }
+        }
+        catch (error) {
+            const tool = type === 'mysql' ? 'mysqldump' : 'pg_dump';
+            throw new Error(`${tool} is not installed. Please install the required database tools:\n` +
+                `For MySQL: Install mysql-client\n` +
+                `For PostgreSQL: Install postgresql-client`);
+        }
+    }
 };
-__decorate([
-    (0, schedule_1.Cron)('0 0 * * *'),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", Promise)
-], BackupService.prototype, "scheduledBackup", null);
 BackupService = BackupService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(constants_1.BACKUP_OPTIONS)),
-    __metadata("design:paramtypes", [Object, storage_factory_1.StorageFactory])
+    __metadata("design:paramtypes", [Object, storage_factory_1.StorageFactory,
+        schedule_1.SchedulerRegistry])
 ], BackupService);
 exports.BackupService = BackupService;
 //# sourceMappingURL=backup.service.js.map

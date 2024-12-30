@@ -14,18 +14,14 @@ const backup_service_1 = require("../backup.service");
 const storage_factory_1 = require("../storage/storage.factory");
 const constants_1 = require("../constants");
 let BackupUIModule = BackupUIModule_1 = class BackupUIModule {
-    static forRoot() {
+    static forRoot(options) {
         return {
             module: BackupUIModule_1,
             controllers: [backup_ui_controller_1.BackupUIController],
             providers: [
                 {
                     provide: constants_1.BACKUP_OPTIONS,
-                    useFactory: () => {
-                        var _a;
-                        const parentModule = (_a = process.mainModule) === null || _a === void 0 ? void 0 : _a.require('./backup/backup.module');
-                        return parentModule === null || parentModule === void 0 ? void 0 : parentModule.options;
-                    },
+                    useValue: options,
                 },
                 storage_factory_1.StorageFactory,
                 backup_service_1.BackupService

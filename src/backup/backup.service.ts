@@ -1,38 +1,81 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
+import { Injectable, Inject, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { SchedulerRegistry } from '@nestjs/schedule';
+import { CronJob } from 'cron';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { BackupOptions, DatabaseConfig } from './interfaces/backup-options.interface';
+import { BackupOptions } from './interfaces/backup-options.interface';
 import { BACKUP_OPTIONS } from './constants';
 import { StorageFactory } from './storage/storage.factory';
 
 const execAsync = promisify(exec);
 
 @Injectable()
-export class BackupService {
+export class BackupService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(BackupService.name);
   private readonly tempDir = path.join(process.cwd(), 'temp-backups');
+  private readonly BACKUP_JOB_NAME = 'backup-job';
 
   constructor(
     @Inject(BACKUP_OPTIONS) private readonly options: BackupOptions,
     private readonly storageFactory: StorageFactory,
+    private schedulerRegistry: SchedulerRegistry,
   ) {
-    // Create temp directory if it doesn't exist
     fs.mkdir(this.tempDir, { recursive: true });
   }
 
-  @Cron('0 0 * * *') // Default daily at midnight
-  async scheduledBackup() {
+  async onModuleInit() {
     if (this.options.schedule) {
       try {
-        await this.createBackup();
-        this.logger.log('Scheduled backup completed successfully');
+
+        try {
+          const existingJob = this.schedulerRegistry.getCronJob(this.BACKUP_JOB_NAME);
+          if (existingJob) {
+            this.logger.log(`Stopping existing backup job`);
+            existingJob.stop();
+            this.schedulerRegistry.deleteCronJob(this.BACKUP_JOB_NAME);
+          }
+        } catch (error) {
+
+          this.logger.debug('No existing backup job found');
+        }
+
+        const job = new CronJob(
+          this.options.schedule,
+          async () => {
+            try {
+              await this.createBackup();
+              this.logger.log('Scheduled backup completed successfully');
+            } catch (error) {
+              this.logger.error('Scheduled backup failed', error);
+              await this.sendNotification('Backup Failed', error.message);
+            }
+          },
+          null,    // onComplete
+          true,    // start
+          'UTC'    // timeZone
+        );
+        
+        this.schedulerRegistry.addCronJob(this.BACKUP_JOB_NAME, job);
+        
+        this.logger.log(`Backup scheduled with cron expression: ${this.options.schedule}`);
       } catch (error) {
-        this.logger.error('Scheduled backup failed', error);
-        await this.sendNotification('Backup Failed', error.message);
+        this.logger.error('Failed to schedule backup job', error);
       }
+    }
+  }
+
+  async onModuleDestroy() {
+    try {
+      const job = this.schedulerRegistry.getCronJob(this.BACKUP_JOB_NAME);
+      if (job) {
+        job.stop();
+        this.schedulerRegistry.deleteCronJob(this.BACKUP_JOB_NAME);
+        this.logger.log('Backup job stopped and removed');
+      }
+    } catch (error) {
+      this.logger.error('Error cleaning up backup job', error);
     }
   }
 

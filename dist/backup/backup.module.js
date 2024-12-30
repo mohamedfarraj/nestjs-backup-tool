@@ -16,7 +16,6 @@ const backup_ui_module_1 = require("./ui/backup-ui.module");
 const storage_factory_1 = require("./storage/storage.factory");
 let BackupModule = BackupModule_1 = class BackupModule {
     static forRoot(options) {
-        BackupModule_1.options = options;
         const providers = [
             {
                 provide: constants_1.BACKUP_OPTIONS,
@@ -27,7 +26,7 @@ let BackupModule = BackupModule_1 = class BackupModule {
         ];
         const imports = [schedule_1.ScheduleModule.forRoot()];
         if (options.enableUI) {
-            imports.push(backup_ui_module_1.BackupUIModule.forRoot());
+            imports.push(backup_ui_module_1.BackupUIModule.forRoot(options));
         }
         return {
             module: BackupModule_1,
