@@ -177,7 +177,6 @@ If you have any questions, issues, or feature requests, please:
 
 1. Check the [GitHub Issues](https://github.com/mohamedfarraj/nestjs-backup-tool/issues)
 2. Open a new issue if your problem or suggestion is not already reported
-3. Join our [Discord Community](https://discord.gg/your-discord) for real-time support
 
 ## Acknowledgments
 
